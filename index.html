@@ -5,132 +5,179 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Joker Eye Tracker</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: #000;
-      touch-action: none;
+      width: 100%; height: 100%; overflow: hidden;
+      background: #000; touch-action: none;
     }
-
     #stage {
       position: relative;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      background: #111;
+      width: 100%; height: 100%;
+      display: flex; justify-content: center; align-items: center;
+      background: #0a0a0a;
     }
-
-    .layer {
-      position: absolute;
-      max-width: 100%;
-      max-height: 100%;
-      width: auto;
-      height: auto;
-      object-fit: contain;
-      pointer-events: none;
-      user-select: none;
+    #canvas {
+      max-width: 100%; max-height: 100%;
+      width: auto; height: auto;
+      display: block;
     }
-
-    #base {
-      z-index: 1;
-    }
-
-    #eyes {
-      z-index: 2;
-      will-change: transform;
-      transition: transform 0.08s cubic-bezier(0.2, 0.8, 0.2, 1);
-    }
-
-    #stage::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.45) 100%);
-      pointer-events: none;
-      z-index: 10;
-    }
-
-    /* Loading / instruction overlay that fades */
     #hint {
       position: absolute;
-      bottom: 24px;
-      left: 0;
-      right: 0;
+      bottom: 20px; left: 0; right: 0;
       text-align: center;
-      color: rgba(255,255,255,0.5);
-      font-family: system-ui, sans-serif;
+      color: rgba(255,255,255,0.55);
+      font-family: system-ui, -apple-system, sans-serif;
       font-size: 13px;
       z-index: 20;
       pointer-events: none;
-      transition: opacity 1.5s ease;
+      transition: opacity 1.2s ease;
+    }
+    #status {
+      position: absolute;
+      top: 16px; left: 0; right: 0;
+      text-align: center;
+      color: #ff6b6b;
+      font-family: system-ui, sans-serif;
+      font-size: 14px;
+      z-index: 30;
+      display: none;
+      padding: 0 16px;
+      line-height: 1.5;
     }
   </style>
 </head>
 <body>
   <div id="stage">
-    <img id="base" class="layer" src="joker-base.png" alt="">
-    <img id="eyes" class="layer" src="joker-eyes.png" alt="">
+    <canvas id="canvas"></canvas>
     <div id="hint">Tilt your device or move the mouse • Tap once for motion permission</div>
+    <div id="status"></div>
   </div>
 
   <script>
     // ============================================================
-    // CONFIG – tweak these values to taste
+    // CONFIG – easy to tweak
     // ============================================================
-    const MAX_OFFSET_X = 14;   // max horizontal pixels the eyes can travel
-    const MAX_OFFSET_Y = 10;   // max vertical pixels
-    const SENSITIVITY  = 1.15; // overall multiplier
-    const SMOOTHING    = 0.18; // 0 = instant, 1 = very slow (lerp factor)
+    const MAX_OFFSET_X = 18;
+    const MAX_OFFSET_Y = 12;
+    const SENSITIVITY  = 1.2;
+    const SMOOTHING    = 0.16;
+
+    // Approximate pupil centers in the original 1024×1024 artwork
+    const LEFT_EYE  = { x: 420, y: 378 };
+    const RIGHT_EYE = { x: 604, y: 378 };
+    const PUPIL_RADIUS = 19;
 
     // ============================================================
     // State
     // ============================================================
-    const eyes = document.getElementById('eyes');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
     const hint = document.getElementById('hint');
-    let currentX = 0;
-    let currentY = 0;
-    let targetX  = 0;
-    let targetY  = 0;
+    const status = document.getElementById('status');
+
+    let img = new Image();
+    let imgLoaded = false;
+    let currentX = 0, currentY = 0;
+    let targetX = 0, targetY = 0;
     let hasOrientation = false;
+    let scale = 1;
 
-    function clamp(value, min, max) {
-      return Math.max(min, Math.min(max, value));
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+    // Try several filenames so it works as soon as you upload the image
+    const candidates = [
+      'joker.png',
+      'joker-base.png',
+      'joker-original.jpg',
+      '1000015595.jpg'
+    ];
+
+    function tryLoad(index) {
+      if (index >= candidates.length) {
+        status.style.display = 'block';
+        status.innerHTML = 'No artwork found.<br>Upload the original Joker image as <b>joker.png</b> to the repo root, then refresh.';
+        return;
+      }
+      img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        imgLoaded = true;
+        status.style.display = 'none';
+        resize();
+        requestAnimationFrame(loop);
+      };
+      img.onerror = () => tryLoad(index + 1);
+      img.src = candidates[index] + '?t=' + Date.now();
     }
+    tryLoad(0);
 
-    function animate() {
+    function resize() {
+      if (!imgLoaded) return;
+      const maxW = window.innerWidth;
+      const maxH = window.innerHeight;
+      const ratio = Math.min(maxW / img.width, maxH / img.height);
+      scale = ratio;
+      canvas.width  = Math.round(img.width  * ratio);
+      canvas.height = Math.round(img.height * ratio);
+      canvas.style.width  = canvas.width  + 'px';
+      canvas.style.height = canvas.height + 'px';
+    }
+    window.addEventListener('resize', resize);
+
+    function loop() {
+      if (!imgLoaded) return;
+
       currentX += (targetX - currentX) * SMOOTHING;
       currentY += (targetY - currentY) * SMOOTHING;
-      eyes.style.transform = `translate3d(${currentX.toFixed(2)}px, ${currentY.toFixed(2)}px, 0)`;
-      requestAnimationFrame(animate);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      const dx = currentX * scale;
+      const dy = currentY * scale;
+      const r  = PUPIL_RADIUS * scale;
+
+      function drawPupil(cx, cy) {
+        const x = cx * scale + dx;
+        const y = cy * scale + dy;
+
+        // Soft edge
+        ctx.beginPath();
+        ctx.arc(x, y, r + 1.5 * scale, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fill();
+
+        // Main pupil
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fill();
+
+        // Highlight
+        ctx.beginPath();
+        ctx.arc(x - r * 0.28, y - r * 0.28, r * 0.22, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.fill();
+      }
+
+      drawPupil(LEFT_EYE.x, LEFT_EYE.y);
+      drawPupil(RIGHT_EYE.x, RIGHT_EYE.y);
+
+      requestAnimationFrame(loop);
     }
-    animate();
 
-    // Fade the hint after a few seconds
-    setTimeout(() => { hint.style.opacity = '0'; }, 6000);
-
-    // Mouse fallback (desktop)
     function handleMouse(e) {
       if (hasOrientation) return;
-      const rect = document.getElementById('stage').getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top  + rect.height / 2;
-      const normX = (e.clientX - centerX) / (rect.width  / 2);
-      const normY = (e.clientY - centerY) / (rect.height / 2);
+      const rect = canvas.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top  + rect.height / 2;
+      const normX = (e.clientX - cx) / (rect.width  / 2);
+      const normY = (e.clientY - cy) / (rect.height / 2);
       targetX = clamp(normX * MAX_OFFSET_X * SENSITIVITY, -MAX_OFFSET_X, MAX_OFFSET_X);
       targetY = clamp(normY * MAX_OFFSET_Y * SENSITIVITY, -MAX_OFFSET_Y, MAX_OFFSET_Y);
     }
     window.addEventListener('mousemove', handleMouse, { passive: true });
 
-    // Device Orientation
     function handleOrientation(e) {
       hasOrientation = true;
       const gamma = e.gamma || 0;
@@ -145,12 +192,12 @@
       if (typeof DeviceOrientationEvent !== 'undefined' &&
           typeof DeviceOrientationEvent.requestPermission === 'function') {
         try {
-          const permission = await DeviceOrientationEvent.requestPermission();
-          if (permission === 'granted') {
+          const p = await DeviceOrientationEvent.requestPermission();
+          if (p === 'granted') {
             window.addEventListener('deviceorientation', handleOrientation, true);
           }
         } catch (err) {
-          console.warn('Orientation permission denied or unavailable', err);
+          console.warn(err);
         }
       } else {
         window.addEventListener('deviceorientation', handleOrientation, true);
@@ -162,10 +209,11 @@
       window.removeEventListener('click', initOnInteraction);
       window.removeEventListener('touchstart', initOnInteraction);
     }
-
     window.addEventListener('click', initOnInteraction, { once: true });
     window.addEventListener('touchstart', initOnInteraction, { once: true });
     requestOrientationPermission();
+
+    setTimeout(() => { hint.style.opacity = '0'; }, 5500);
 
     if ('wakeLock' in navigator) {
       navigator.wakeLock.request('screen').catch(() => {});
