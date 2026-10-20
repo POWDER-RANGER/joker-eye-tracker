@@ -2,7 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="An interactive portrait experiment designed to follow mouse movement on desktop and device tilt on supported mobile browsers. Artwork assets must be supplied for the effect to render.">
+  <meta property="og:title" content="Joker Eye Tracker">
+  <meta property="og:description" content="Interactive portrait experiment for mouse and device-orientation input. Requires valid local artwork assets.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://powder-ranger.github.io/joker-eye-tracker/">
+  <link rel="canonical" href="https://powder-ranger.github.io/joker-eye-tracker/">
   <title>Joker Eye Tracker</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -41,8 +47,16 @@
       font-size: 14px;
       z-index: 30;
       display: none;
-      padding: 0 16px;
-      line-height: 1.5;
+      max-width: 620px;
+      margin: 0 auto;
+      padding: 18px 22px;
+      line-height: 1.6;
+      background: rgba(0,0,0,0.88);
+      border: 1px solid rgba(255,107,107,0.6);
+      left: 16px;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
     }
   </style>
 </head>
@@ -95,7 +109,7 @@
     function tryLoad(index) {
       if (index >= candidates.length) {
         status.style.display = 'block';
-        status.innerHTML = 'No artwork found.<br>Upload the original Joker image as <b>joker.png</b> to the repo root, then refresh.';
+        status.innerHTML = 'ARTWORK REQUIRED<br><br>The interactive stage cannot render until valid artwork is added to this repository. The current joker-original.jpg file is a text placeholder, not an image.<br><br>Expected asset: <b>joker.png</b> or <b>joker-base.png</b> in the repository root.<br><br><a href="https://github.com/POWDER-RANGER/joker-eye-tracker#setup-the-image-layers" style="color:#ff8a8a;pointer-events:auto">VIEW ASSET SETUP INSTRUCTIONS</a>';
         return;
       }
       img = new Image();
