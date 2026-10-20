@@ -13,7 +13,7 @@ Place both files in the root of this repository (same folder as `index.html`).
 
 See the original conversation for detailed Photoshop / Photopea / GIMP steps.
 
-The original source image is included as `joker-original.jpg` for reference.
+**Asset status:** `joker-original.jpg` is currently a text placeholder, not image data. The interactive effect needs valid artwork assets in the repository root before it can render. No original artwork is bundled at present.
 
 ## Live demo
 
